@@ -1,11 +1,23 @@
-import cv2
-import numpy as np
+import traceback
+
+try:
+    import numpy as np
+    print("✅ numpy imported")
+except Exception:
+    print(traceback.format_exc())
+    raise
 
 
 class ImagePreprocessor:
 
     @staticmethod
     def preprocess(image):
+        try:
+            import cv2
+            print("✅ cv2 imported")
+        except Exception:
+            print(traceback.format_exc())
+            raise
 
         # -------------------------
         # Resize large images
