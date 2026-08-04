@@ -1,52 +1,76 @@
 import re
 
 
+IGNORE_WORDS = {
+    "GST", "CGST", "SGST", "IGST",
+    "TOTAL", "GRAND", "NET", "AMOUNT",
+    "PAYABLE", "ROUND", "PAYMENT",
+    "THANK", "VISIT", "WELCOME",
+    "PHONE", "MOBILE", "ADDRESS",
+    "EMAIL", "WEBSITE",
+    "CASH", "CARD", "UPI",
+    "BALANCE", "CHANGE", "TENDER",
+    "SUBTOTAL", "DISCOUNT", "TAX",
+    "DATE", "TIME",
+    "BILL", "INVOICE",
+    "OPERATOR",
+    "CUSTOMER"
+}
+
+
+def _calculate_score(line: str) -> int:
+    score = 0
+    upper = line.upper()
+
+    # Reject obvious headers/footers
+    if any(word in upper for word in IGNORE_WORDS):
+        return -100
+
+    # Has alphabets
+    if re.search(r"[A-Za-z]", line):
+        score += 3
+
+    # Has decimal amount
+    if re.search(r"\d+\.\d{1,2}", line):
+        score += 3
+
+    # Has integer amount
+    elif re.search(r"\b\d+\b", line):
+        score += 1
+
+    # Product-like words
+    words = line.split()
+
+    if 1 <= len(words) <= 8:
+        score += 2
+
+    # Penalize lines with too many numbers
+    numbers = re.findall(r"\d+(?:\.\d+)?", line)
+
+    if len(numbers) > 5:
+        score -= 2
+
+    # Reject lines that are only numbers
+    if re.fullmatch(r"[\d .]+", line):
+        score -= 4
+
+    # Looks like quantity × price
+    if re.search(r"[xX]\s*\d", line):
+        score += 2
+
+    # Weight based receipts
+    if re.search(r"\d+\.\d+\s+\d+\.\d+\s+\d+\.\d+", line):
+        score += 2
+
+    return score
+
+
 def detect_item_lines(lines):
     """
-    Detect candidate item lines.
-
-    Strategy:
-    1. Ignore receipt headers and footers.
-    2. Accept lines containing:
-       - Item name + numbers
-       - Item name only (for split OCR)
-       - Numeric continuation lines
+    Detect probable receipt item lines using confidence scoring.
     """
 
     candidates = []
-
-    ignore_words = [
-        "GST",
-        "CGST",
-        "SGST",
-        "IGST",
-        "TOTAL",
-        "NET",
-        "AMOUNT",
-        "ROUND",
-        "PAYABLE",
-        "PAYMENT",
-        "THANK",
-        "VISIT",
-        "PHONE",
-        "MOBILE",
-        "ADDRESS",
-        "CASH",
-        "CARD",
-        "UPI",
-        "BALANCE",
-        "CHANGE",
-        "TENDER",
-        "SUBTOTAL",
-        "DISCOUNT",
-        "TAX",
-        "NO OF ITEMS",
-        "T WT",
-        "OPERATOR",
-        "BILL",
-        "DATE",
-        "TIME",
-    ]
 
     for line in lines:
 
@@ -55,51 +79,9 @@ def detect_item_lines(lines):
         if not line:
             continue
 
-        upper = line.upper()
+        score = _calculate_score(line)
 
-        # Ignore footer/header information
-        if any(word in upper for word in ignore_words):
-            continue
-
-        # ---------------------------------------
-        # Case 1
-        # Name + numbers
-        # Example:
-        # ONION 2.475 42.00 103.95
-        # ---------------------------------------
-
-        if re.search(r"[A-Za-z]", line) and re.search(r"\d+\.\d+", line):
+        if score >= 5:
             candidates.append(line)
-            continue
-
-        # ---------------------------------------
-        # Case 2
-        # Name only
-        # Example:
-        # GOKARAKAYA
-        # ---------------------------------------
-
-        if re.fullmatch(r"[A-Za-z .:&()/\-]+", line):
-
-            words = line.split()
-
-            if 1 <= len(words) <= 5:
-                candidates.append(line)
-
-            continue
-
-        # ---------------------------------------
-        # Case 3
-        # Numeric continuation line
-        # Example:
-        # 0.435 50.00 21.75
-        # ---------------------------------------
-
-        if re.match(r"^\d", line):
-
-            numbers = re.findall(r"\d+\.\d+", line)
-
-            if len(numbers) >= 2:
-                candidates.append(line)
 
     return candidates

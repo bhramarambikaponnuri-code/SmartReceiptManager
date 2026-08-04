@@ -1,9 +1,11 @@
 import cv2
+from matplotlib import lines
 import numpy as np
 import time
 import streamlit as st
 
 from ocr.preprocess import ImagePreprocessor
+from ocr.layout_reconstructor import reconstruct_rows
 
 @st.cache_resource(show_spinner=False)
 def get_reader():
@@ -12,7 +14,9 @@ def get_reader():
     return easyocr.Reader(
         ["en"],
         gpu=False,
-        verbose=False
+        verbose=False,
+        quantize=True,
+        recog_network="standard"
     )
 
 
@@ -28,6 +32,8 @@ def extract_text(image_path):
     best_confidence : float
     timings : dict
     """
+
+    print(">>>>>>>> extract_text() CALLED <<<<<<<<")
 
     # ----------------------------
     # Overall Timer
@@ -75,8 +81,15 @@ def extract_text(image_path):
         processed,
         detail=1,
         paragraph=False,
-        decoder="greedy"
+        decoder="greedy",
+        batch_size=4
     )
+
+    for box, text, conf in results:
+        print("--------------------------------")
+        print(text)
+        print(box)
+        print(conf)
 
     best_text = results
     best_image = processed
@@ -91,7 +104,7 @@ def extract_text(image_path):
     # Try other rotations only if needed
     # ----------------------------
 
-    if best_confidence < 0.65:
+    if best_confidence < 0.55:
 
         rotations = [
             ("90°", cv2.rotate(processed, cv2.ROTATE_90_CLOCKWISE)),
@@ -105,7 +118,8 @@ def extract_text(image_path):
                 img,
                 detail=1,
                 paragraph=False,
-                decoder="greedy"
+                decoder="greedy",
+                batch_size=4
             )
 
             confidence = (
@@ -126,10 +140,16 @@ def extract_text(image_path):
     # Convert OCR Results to Text
     # ----------------------------
 
-    text = ""
+    lines = reconstruct_rows(best_text)
 
-    for detection in best_text:
-        text += detection[1] + "\n"
+    print("\n===== RECONSTRUCTED ROWS =====")
+
+    for line in lines:
+        print(line)
+
+    print("==============================\n")
+
+    text = "\n".join(lines)
 
     # ----------------------------
     # Total Time
@@ -183,5 +203,8 @@ def choose_best_result(original_result, processed_result):
 
     if original_score >= processed_score:
         return original_result, "Original Image"
+
+    st.write("OCR Output")
+    st.write(lines)
 
     return processed_result, "Processed Image"

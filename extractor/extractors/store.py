@@ -38,7 +38,7 @@ def find_store(lines):
     best_store = ""
 
     # Only the top portion of the receipt
-    for line in lines[:12]:
+    for idx, line in enumerate(lines[:12]):
 
         text = line.strip()
 
@@ -48,6 +48,10 @@ def find_store(lines):
         upper = text.upper()
 
         score = 0
+
+        # Higher preference for top lines
+        if idx < 5:
+            score += 3
 
         # --------------------------
         # Positive scoring
@@ -62,11 +66,15 @@ def find_store(lines):
         # Few digits
         digits = sum(c.isdigit() for c in text)
 
-        if digits == 0:
+        if digits <= 2:
             score += 2
 
         # Uppercase looks like business name
         if upper == text:
+            score += 2
+
+        # Reward Title Case
+        if text.istitle():
             score += 2
 
         # Not too long
@@ -80,18 +88,35 @@ def find_store(lines):
         business_words = [
             "MART",
             "STORE",
+            "SUPERMARKET",
+            "SUPER",
             "MEDICAL",
             "PHARMACY",
-            "SUPER",
-            "SUPERMARKET",
+            "HOSPITAL",
+            "CLINIC",
             "RESTAURANT",
             "HOTEL",
             "CAFE",
             "BAKERY",
-            "ENTERPRISES",
-            "TRADERS",
             "FOODS",
-            "MARKET"
+            "MARKET",
+            "ENTERPRISES",
+            "ENTERPRISE",
+            "TRADERS",
+            "TRADING",
+            "JEWELLERS",
+            "JEWELERS",
+            "OPTICAL",
+            "OPTICS",
+            "ELECTRONICS",
+            "MOBILE",
+            "FASHION",
+            "TEXTILES",
+            "PVT",
+            "PRIVATE",
+            "LIMITED",
+            "LTD",
+            "LLP"
         ]
 
         if any(word in upper for word in business_words):
@@ -107,6 +132,8 @@ def find_store(lines):
             "PHONE",
             "TEL",
             "MOBILE",
+            "EMAIL",
+            "WEBSITE",
             "INVOICE",
             "BILL",
             "RECEIPT",
@@ -117,16 +144,23 @@ def find_store(lines):
             "AMOUNT",
             "CASH",
             "CARD",
+            "UPI",
             "WELCOME",
             "THANK",
-            "VISIT"
+            "VISIT",
+            "CUSTOMER",
+            "CASHIER",
+            "CHANGE",
+            "BALANCE",
+            "ROUND",
+            "DISCOUNT"
         ]
 
         if any(word in upper for word in bad_words):
             score -= 6
 
         if is_address(text):
-            score -= 5
+            score -= 3
 
         if digits > 5:
             score -= 3
@@ -136,5 +170,9 @@ def find_store(lines):
         if score > best_score:
             best_score = score
             best_store = text
+
+    # Don't return weak candidates
+    if best_score < 3:
+        return ""
 
     return best_store

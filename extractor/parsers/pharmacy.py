@@ -12,9 +12,9 @@ class PharmacyParser(GenericParser):
 
     def parse(self):
 
-        data = super().parse()
+        return super().parse()
 
         # Replace generic item extraction
-        data["Items"] = extract_pharmacy_items(self.lines)
+       # data["Items"] = extract_pharmacy_items(self.lines)
 
-        return data
+        #return data

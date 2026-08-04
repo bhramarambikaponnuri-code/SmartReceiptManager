@@ -17,6 +17,7 @@ def normalize_date(date_str):
 
         "%d/%m/%y",
         "%d-%m-%y",
+        "%d.%m.%y",
 
         "%d %b %Y",
         "%d %B %Y",
@@ -29,6 +30,15 @@ def normalize_date(date_str):
 
         "%b %d %y",
         "%B %d %y",
+
+        "%d%b%Y",
+        "%d%b%y",
+
+        "%d-%b-%Y",
+        "%d-%b-%y",
+
+        "%d-%B-%Y",
+        "%d-%B-%y",
     ]
 
     for fmt in formats:
@@ -39,7 +49,7 @@ def normalize_date(date_str):
 
             return dt.strftime("%d/%m/%Y")
 
-        except:
+        except Exception:
             pass
 
     return None
@@ -64,12 +74,27 @@ def clean_ocr_date(text):
 
 def find_date(lines):
     """
-    Smart date extractor.
-
-    Supports many receipt formats and OCR mistakes.
+    Smart date extractor using confidence scoring.
     """
 
     candidates = []
+
+    keyword_scores = {
+
+        "BILL DATE": 120,
+        "INVOICE DATE": 120,
+        "TRANSACTION DATE": 115,
+        "PURCHASE DATE": 110,
+        "DATE": 100,
+
+        "EXPIRY": -100,
+        "EXP": -100,
+        "MFG": -100,
+        "MANUFACTURED": -100,
+        "PACKED": -80,
+        "BEST BEFORE": -100,
+        "TIME": -20
+    }
 
     patterns = [
 
@@ -87,15 +112,32 @@ def find_date(lines):
 
         # Jul 14 2025
         r"[A-Za-z]{3,9}\s+\d{1,2}\s+\d{2,4}",
+
+        # 03AUG2026
+        r"\d{2}[A-Za-z]{3}\d{4}",
+
+        # 03-Aug-26
+        r"\d{2}-[A-Za-z]{3}-\d{2,4}",
     ]
 
-    for line in lines:
+    for idx, line in enumerate(lines):
 
         line = clean_ocr_date(line)
 
-        # Correct OCR keyword mistakes
         line = line.replace("Datenime", "Date")
         line = line.replace("Datetime", "Date")
+
+        upper = line.upper()
+
+        score = 0
+
+        for key, value in keyword_scores.items():
+
+            if key in upper:
+                score += value
+
+        # Small bonus for dates near top of receipt
+        score += max(0, 20 - idx)
 
         for pattern in patterns:
 
@@ -107,26 +149,45 @@ def find_date(lines):
 
                 if normalized:
 
-                    candidates.append(normalized)
+                    candidates.append((score, normalized))
 
         # Handle OCR like 14/072025
         match = re.search(r"(\d{2})/(\d{2})(\d{4})", line)
 
         if match:
 
-            reconstructed = f"{match.group(1)}/{match.group(2)}/{match.group(3)}"
+            reconstructed = (
+                f"{match.group(1)}/"
+                f"{match.group(2)}/"
+                f"{match.group(3)}"
+            )
 
             normalized = normalize_date(reconstructed)
 
             if normalized:
 
-                candidates.append(normalized)
+                candidates.append((score, normalized))
 
-    if candidates:
+    if not candidates:
+        return ""
 
-        # Remove duplicates while preserving order
-        unique = list(dict.fromkeys(candidates))
+    # Keep highest score for duplicate dates
+    best_dates = {}
 
-        return unique[0]
+    for score, date in candidates:
 
-    return ""
+        if date not in best_dates:
+
+            best_dates[date] = score
+
+        else:
+
+            best_dates[date] = max(best_dates[date], score)
+
+    # Highest confidence wins
+    best_date = max(
+        best_dates.items(),
+        key=lambda x: x[1]
+    )[0]
+
+    return best_date

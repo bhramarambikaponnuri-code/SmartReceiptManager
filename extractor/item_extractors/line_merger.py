@@ -3,7 +3,7 @@ import re
 
 def is_item_name(line):
     """
-    Returns True if the line looks like an item name.
+    Returns True if line looks like an item description.
     """
 
     line = line.strip()
@@ -11,30 +11,33 @@ def is_item_name(line):
     if not line:
         return False
 
-    # Must contain letters
+    # Must contain alphabets
     if not re.search(r"[A-Za-z]", line):
         return False
 
-    # Should not already contain price values
-    if re.search(r"\d+\.\d{2}", line):
-        return False
-
-    # Ignore totals and headers
+    # Ignore obvious non-item headers
     blocked = [
         "TOTAL",
         "GST",
         "CGST",
         "SGST",
+        "IGST",
         "ROUND",
+        "DISCOUNT",
         "AMOUNT",
         "PRICE",
         "RATE",
         "QTY",
-        "WT",
+        "QUANTITY",
+        "UNIT",
         "ITEM",
         "THANK",
+        "WELCOME",
         "CASH",
-        "CARD"
+        "CARD",
+        "DATE",
+        "INVOICE",
+        "BILL"
     ]
 
     upper = line.upper()
@@ -45,36 +48,37 @@ def is_item_name(line):
     return True
 
 
-def is_numeric_line(line):
+def is_amount_only(line):
     """
-    Returns True if the line contains only numeric values
-    like Qty Price Amount.
+    Returns True if the line contains only one amount.
+
+    Example:
+        100.00
+        1,500.00
     """
 
     line = line.strip()
 
-    if not line:
-        return False
-
-    # Starts with a number
-    if not re.match(r"^\d", line):
-        return False
-
-    numbers = re.findall(r"\d+\.\d{2,3}", line)
-
-    return len(numbers) >= 2
+    return bool(
+        re.fullmatch(r"\d{1,3}(?:,\d{3})*(?:\.\d{2})?", line)
+    )
 
 
 def merge_item_lines(lines):
     """
-    Merge OCR outputs like:
+    Merge OCR-split item lines.
 
-    GOKARAKAYA
-    0.435 50.00 21.75
+    Handles:
 
-    into
+    ITEM
+    Qty Price Amount
 
-    GOKARAKAYA 0.435 50.00 21.75
+    ITEM Qty Price
+    Amount
+
+    ITEM Qty
+    Price
+    Amount
     """
 
     merged = []
@@ -85,16 +89,70 @@ def merge_item_lines(lines):
 
         current = lines[i].strip()
 
-        if i + 1 < len(lines):
+        # -------------------------
+        # Case 1
+        # Current line contains text
+        # Next line is only amount
+        # -------------------------
 
-            nxt = lines[i + 1].strip()
+        if (
+            i + 1 < len(lines)
+            and re.search(r"[A-Za-z]", current)
+            and is_amount_only(lines[i + 1].strip())
+        ):
 
-            if is_item_name(current) and is_numeric_line(nxt):
+            merged.append(
+                current + " " + lines[i + 1].strip()
+            )
 
-                merged.append(current + " " + nxt)
+            i += 2
+            continue
 
-                i += 2
-                continue
+        # -------------------------
+        # Case 2
+        # Current line has letters
+        # Next line starts with number
+        # -------------------------
+
+        if (
+            i + 1 < len(lines)
+            and re.search(r"[A-Za-z]", current)
+            and re.match(r"^\d", lines[i + 1].strip())
+        ):
+
+            merged.append(
+                current + " " + lines[i + 1].strip()
+            )
+
+            i += 2
+            continue
+
+        # -------------------------
+        # Case 3
+        # Three-line merge
+        #
+        # ITEM
+        # Qty Price
+        # Amount
+        # -------------------------
+
+        if (
+            i + 2 < len(lines)
+            and re.search(r"[A-Za-z]", current)
+            and re.match(r"^\d", lines[i + 1].strip())
+            and is_amount_only(lines[i + 2].strip())
+        ):
+
+            merged.append(
+                current
+                + " "
+                + lines[i + 1].strip()
+                + " "
+                + lines[i + 2].strip()
+            )
+
+            i += 3
+            continue
 
         merged.append(current)
 

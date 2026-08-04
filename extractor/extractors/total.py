@@ -3,27 +3,17 @@ from extractor.helper import extract_amount
 
 
 def find_total(lines):
-    """
-    Extract the final payable amount.
 
-    Priority:
-        1. Amount Payable
-        2. Net Amount
-        3. Grand Total
-        4. Total
-        5. Largest amount near end of receipt
-    """
+    candidates = []
 
-    priority_keywords = [
+    positive_scores = {
+        "AMOUNT PAYABLE": 100,
+        "NET AMOUNT": 95,
+        "GRAND TOTAL": 90,
+        "TOTAL": 80,
+    }
 
-        "AMOUNT PAYABLE",
-        "NET AMOUNT",
-        "GRAND TOTAL",
-        "TOTAL"
-    ]
-
-    ignore_keywords = [
-
+    negative_keywords = {
         "SUB TOTAL",
         "ITEM TOTAL",
         "DISCOUNT",
@@ -37,45 +27,68 @@ def find_total(lines):
         "RECEIVED",
         "BALANCE",
         "MRP",
-        "SAVINGS"
-    ]
+        "SAVINGS",
+    }
 
-    # ------------------------
-    # Priority search
-    # ------------------------
+    for i, line in enumerate(lines):
 
-    for keyword in priority_keywords:
+        upper = line.upper()
 
-        for i, line in enumerate(lines):
+        # Skip obvious non-total lines
+        if any(word in upper for word in negative_keywords):
+            continue
 
-            upper = line.upper()
+        amount = None
 
-            if keyword not in upper:
-                continue
+        # Check current line and next 2 lines
+        for j in range(i, min(i + 3, len(lines))):
 
-            if any(ignore in upper for ignore in ignore_keywords):
-                continue
+            amount = extract_amount(lines[j])
 
-            for j in range(i, min(i + 3, len(lines))):
+            if amount:
+                break
 
-                amount = extract_amount(lines[j])
+        if not amount:
+            continue
 
-                if amount:
-                    return amount
+        score = 0
 
-    # ------------------------
-    # Fallback:
-    # Largest amount near bottom
-    # ------------------------
+        for keyword, value in positive_scores.items():
+            if keyword in upper:
+                score = value
+                break
+
+        # Bonus for appearing near bottom of receipt
+        score += max(0, i - len(lines) + 20)
+
+        candidates.append(
+            (
+                score,
+                float(amount),
+                amount
+            )
+        )
+
+    # If confidence candidates exist
+    if candidates:
+
+        candidates.sort(
+            key=lambda x: (
+                x[0],      # confidence
+                x[1]       # larger amount
+            ),
+            reverse=True
+        )
+
+        return candidates[0][2]
+
+    # ----------------------
+    # Final fallback
+    # ----------------------
 
     amounts = []
 
     for line in lines[-15:]:
-
-        upper = line.upper()
-
-        if any(ignore in upper for ignore in ignore_keywords):
-            continue
 
         values = re.findall(r"\d+\.\d{2}", line)
 

@@ -1,5 +1,7 @@
 import traceback
 
+from streamlit import image
+
 try:
     import numpy as np
     print("✅ numpy imported")
@@ -25,8 +27,10 @@ class ImagePreprocessor:
 
         h, w = image.shape[:2]
 
-        max_width = 1500
+        max_width = 1200
+        min_width = 900
 
+        # Reduce very large images
         if w > max_width:
 
             scale = max_width / w
@@ -38,6 +42,22 @@ class ImagePreprocessor:
                 fy=scale,
                 interpolation=cv2.INTER_AREA
             )
+
+        # Enlarge very small images
+        elif w < min_width:
+
+            scale = min_width / w
+
+            image = cv2.resize(
+                image,
+                None,
+                fx=scale,
+                fy=scale,
+                interpolation=cv2.INTER_CUBIC
+            )
+
+        # Update dimensions
+        h, w = image.shape[:2]
 
         # -------------------------
         # Convert to Grayscale
@@ -70,6 +90,17 @@ class ImagePreprocessor:
         )
 
         # -------------------------
+        # Sharpen image
+        # -------------------------
+        kernel = np.array([
+            [0, -1, 0],
+            [-1, 5, -1],
+            [0, -1, 0]
+        ])
+
+        gray = cv2.filter2D(gray, -1, kernel)
+
+        # -------------------------
         # Adaptive Threshold
         # -------------------------
 
@@ -87,6 +118,12 @@ class ImagePreprocessor:
         # -------------------------
 
         kernel = np.ones((2, 2), np.uint8)
+
+        processed = cv2.morphologyEx(
+            processed,
+            cv2.MORPH_CLOSE,
+            kernel
+        )
 
         processed = cv2.morphologyEx(
             processed,

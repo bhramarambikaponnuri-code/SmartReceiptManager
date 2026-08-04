@@ -11,6 +11,7 @@ from export.excel_exporter import export_receipt_excel
 from export.pdf_exporter import export_receipt_pdf
 
 import time
+import pandas as pd
 
 
 def extractor_page():
@@ -91,13 +92,22 @@ def extractor_page():
             width=300
         )
 
+    st.info(
+        """
+        📌 **Important**
+
+        The accuracy of extracted information depends on the quality of the uploaded receipt.
+        For best results, upload a clear, high-resolution image where all text is visible and readable.
+        """
+    )
+
     # -------------------------------
     # Extract Button
     # -------------------------------
     if uploaded_file is not None:
 
         
-        if st.button("Extract Receipt", type="primary", use_container_width=True):
+        if st.button("Extract Receipt", type="primary", width="stretch"):
 
             if uploaded_file is None:
 
@@ -121,6 +131,8 @@ def extractor_page():
 
                 with st.spinner("Extracting receipt..."):
 
+                    print("Calling OCR from:", extract_text.__module__)
+
                     ocr_text, best_image, angle, confidence, timings = extract_text(image_path)
 
                 parser = ReceiptParser(
@@ -130,7 +142,12 @@ def extractor_page():
 
                 info = parser.parse()
 
+                print("\n===== AFTER PARSER =====")
+                print(info["Items"])
+                print("Length:", len(info["Items"]))
+
                 st.session_state.receipt_info = info
+                st.session_state.edited_items_df = pd.DataFrame(info["Items"])
                 st.session_state.ocr_text = ocr_text
                 st.session_state.best_image = best_image
                 st.session_state.angle = angle
@@ -147,8 +164,6 @@ def extractor_page():
     # ==================================================
 
     if st.session_state.receipt_info is not None:
-
-        import pandas as pd
 
         info = st.session_state.receipt_info
 
@@ -209,6 +224,12 @@ def extractor_page():
         # If OCR found no items, create an empty table
         if len(info["Items"]) == 0:
 
+            st.warning(
+                "⚠️ Unable to detect purchased items.\n\n"
+                "The uploaded receipt may be blurry, low quality, or difficult for OCR to read.\n"
+                "Please upload a clearer receipt image."
+            )
+
             df = pd.DataFrame(
                 columns=[
                     "Qty",
@@ -220,13 +241,26 @@ def extractor_page():
 
         else:
 
+            print("\n===== ITEMS SENT TO UI =====")
+            print(info["Items"])
+            print("Length:", len(info["Items"]))
+
             df = pd.DataFrame(info["Items"])
 
 
+        if "edited_items_df" not in st.session_state:
+
+            if len(info["Items"]) == 0:
+                st.session_state.edited_items_df = pd.DataFrame(
+                    columns=["Qty", "Item", "Price", "Amount"]
+                )
+            else:
+                st.session_state.edited_items_df = pd.DataFrame(info["Items"])
+
         edited_df = st.data_editor(
-            df,
+            st.session_state.edited_items_df,
             hide_index=True,
-            use_container_width=True,
+            width="stretch",
             num_rows="dynamic",
             column_config={
 
@@ -253,6 +287,7 @@ def extractor_page():
         )
 
         # Save edited items back to session
+        st.session_state.edited_items_df = edited_df
         info["Items"] = edited_df.to_dict("records")
 
         # ---------------------------------------
@@ -284,12 +319,39 @@ def extractor_page():
         # Show calculated total
         if "Amount" in edited_df.columns:
 
+            print(edited_df["Amount"])
+            print(edited_df["Amount"].dtype)
+
+            edited_df["Amount"] = (
+                pd.to_numeric(
+                    edited_df["Amount"],
+                    errors="coerce"
+                )
+                .fillna(0)
+            )
+
+            edited_df["Amount"] = (
+                edited_df["Amount"]
+                .astype(str)
+                .str.replace(",", "", regex=False)
+            )
+
+            edited_df["Amount"] = pd.to_numeric(
+                edited_df["Amount"],
+                errors="coerce"
+            ).fillna(0)
+
             calculated_total = edited_df["Amount"].sum()
+
+            print(edited_df["Amount"].dtype)
+            print(calculated_total)
 
             st.metric(
                 "Calculated Total",
                 f"₹ {calculated_total:.2f}"
             )
+
+
 
         if st.button("Use Calculated Total", type="primary"):
 
@@ -304,9 +366,10 @@ def extractor_page():
         with st.expander("🔍 OCR Text"):
 
             st.text_area(
-                "",
+                "OCR Text",
                 st.session_state.ocr_text,
-                height=300
+                height=300,
+                label_visibility="collapsed"
             )
 
         with st.expander("📊 OCR Information"):
@@ -442,7 +505,7 @@ def extractor_page():
 
                         mime="text/csv",
 
-                        use_container_width=True
+                        width="stretch"
 
                     )
 
@@ -460,7 +523,7 @@ def extractor_page():
 
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 
-                        use_container_width=True
+                        width="stretch"
 
                     )
 
@@ -478,7 +541,7 @@ def extractor_page():
 
                         mime="application/pdf",
 
-                        use_container_width=True
+                        width="stretch"
 
                     )
 
@@ -487,7 +550,7 @@ def extractor_page():
             if st.button(
                 "🆕 Process New Receipt",
                 type="secondary",
-                use_container_width=True
+                width="stretch"
             ):
 
                 for key in [

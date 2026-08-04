@@ -1,6 +1,4 @@
 from extractor.parsers.generic import GenericParser
-from extractor.item_extractors.restaurant_items import extract_restaurant_items
-
 
 class RestaurantParser(GenericParser):
     """
@@ -15,8 +13,4 @@ class RestaurantParser(GenericParser):
 
     def parse(self):
 
-        data = super().parse()
-
-        data["Items"] = extract_restaurant_items(self.lines)
-
-        return data
+        return super().parse()
