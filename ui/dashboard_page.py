@@ -93,7 +93,7 @@ def dashboard_page():
 
             st.plotly_chart(
                 fig,
-                width="stretch"
+                use_container_width=True
             )
 
     # ==================================================
@@ -139,7 +139,7 @@ def dashboard_page():
 
             st.plotly_chart(
                 fig,
-                width="stretch"
+                use_container_width=True
             )
 
     # ==================================================
@@ -186,7 +186,7 @@ def dashboard_page():
 
             st.plotly_chart(
                 fig,
-                width="stretch"
+                use_container_width=True
             )
 
     # ==================================================
@@ -228,7 +228,7 @@ def dashboard_page():
 
             st.plotly_chart(
                 fig,
-                width="stretch"
+                use_container_width=True
             )
 
     repo.close()

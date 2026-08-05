@@ -107,7 +107,7 @@ def extractor_page():
     if uploaded_file is not None:
 
         
-        if st.button("Extract Receipt", type="primary", width="stretch"):
+        if st.button("Extract Receipt", type="primary", use_container_width=True):
 
             if uploaded_file is None:
 
@@ -259,9 +259,9 @@ def extractor_page():
 
         edited_df = st.data_editor(
             st.session_state.edited_items_df,
-            hide_index=True,
-            width="stretch",
-            num_rows="dynamic",
+            #hide_index=True,
+            #use_container_width=True,
+            #num_rows="dynamic",
             column_config={
 
                 "Qty": st.column_config.NumberColumn(
@@ -282,6 +282,7 @@ def extractor_page():
                     "Amount",
                     format="₹ %.2f",
                     disabled=True
+
                 ),
             }
         )
@@ -505,7 +506,7 @@ def extractor_page():
 
                         mime="text/csv",
 
-                        width="stretch"
+                        use_container_width=True
 
                     )
 
@@ -523,7 +524,7 @@ def extractor_page():
 
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 
-                        width="stretch"
+                        use_container_width=True
 
                     )
 
@@ -541,7 +542,7 @@ def extractor_page():
 
                         mime="application/pdf",
 
-                        width="stretch"
+                        use_container_width=True
 
                     )
 
@@ -550,7 +551,7 @@ def extractor_page():
             if st.button(
                 "🆕 Process New Receipt",
                 type="secondary",
-                width="stretch"
+                use_container_width=True
             ):
 
                 for key in [

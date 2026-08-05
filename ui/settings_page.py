@@ -223,13 +223,13 @@ def settings_page():
 
         if st.button(
             "🗑 Clear Receipt History",
-            width="stretch"
+            use_container_width=True
         ):
             st.session_state.maintenance_action = "history"
 
         if st.button(
             "🗑 Delete Uploaded Images",
-            width="stretch"
+            use_container_width=True
         ):
             st.session_state.maintenance_action = "uploads"
 
@@ -237,13 +237,13 @@ def settings_page():
 
         if st.button(
             "🗑 Delete Export Files",
-            width="stretch"
+            use_container_width=True
         ):
             st.session_state.maintenance_action = "exports"
 
         if st.button(
             "🔄 Reset Application",
-            width="stretch"
+            use_container_width=True
         ):
             st.session_state.maintenance_action = "reset"
 
@@ -261,7 +261,7 @@ def settings_page():
 
                 if st.button(
                     "✅ Yes",
-                    width="stretch"
+                    use_container_width=True
                 ):
 
                     if action == "history":
@@ -304,7 +304,7 @@ def settings_page():
 
                 if st.button(
                     "❌ Cancel",
-                    width="stretch"
+                    use_container_width=True
                 ):
 
                     st.session_state.maintenance_action = None
