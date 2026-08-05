@@ -260,7 +260,7 @@ def extractor_page():
         edited_df = st.data_editor(
             st.session_state.edited_items_df,
             hide_index=True,
-            #use_container_width=True,
+            use_container_width=True,
             num_rows="dynamic",
             column_config={
 
