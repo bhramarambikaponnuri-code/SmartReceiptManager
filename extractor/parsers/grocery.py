@@ -15,10 +15,10 @@ class GroceryParser(GenericParser):
 
     def parse(self):
 
-        return super().parse()
+        data = super().parse()
 
         # Grocery-specific logic can be added here
 
-        #data["Items"] = extract_grocery_items(self.lines)
+        data["Items"] = extract_grocery_items(self.lines)
 
-        #return data
+        return data

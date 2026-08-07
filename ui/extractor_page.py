@@ -14,6 +14,29 @@ import time
 import pandas as pd
 
 
+def clear_receipt_state():
+    """
+    Clear current receipt data from session state
+    so user can upload a new receipt without saving.
+    """
+
+    keys = [
+        "receipt_info",
+        "ocr_text",
+        "best_image",
+        "angle",
+        "confidence",
+        "image_path",
+        "receipt_type",
+        "total",
+        "timings",
+        "edited_items_df",
+    ]
+
+    for key in keys:
+        if key in st.session_state:
+            del st.session_state[key]
+
 def extractor_page():
 
     page_start = time.perf_counter()
@@ -313,7 +336,7 @@ def extractor_page():
             edited_df["Amount"] = (
                 edited_df["Qty"]
                 * edited_df["Price"]
-            )
+            ).round(2)
 
             info["Items"] = edited_df.to_dict("records")
 
@@ -420,66 +443,77 @@ def extractor_page():
         # Save Button
         # -------------------------------
 
-        if st.button("💾 Save Receipt", type="primary"):
+        col1, col2 = st.columns(2)
 
-            repo = ReceiptRepository()
+        with col1:
+            if st.button("💾 Save Receipt", type="primary"):
 
-            info["Receipt Type"] = st.session_state.receipt_type
+                repo = ReceiptRepository()
 
-            receipt_id = repo.save_receipt(
-                info,
-                st.session_state.image_path
-            )
+                info["Receipt Type"] = st.session_state.receipt_type
 
-            repo.save_items(
-                receipt_id,
-                info["Items"]
-            )
+                receipt_id = repo.save_receipt(
+                    info,
+                    st.session_state.image_path
+                )
 
-            repo.close()
+                repo.save_items(
+                    receipt_id,
+                    info["Items"]
+                )
 
-            st.success(
-                f"Receipt saved successfully! (ID: {receipt_id})"
-            )
+                repo.close()
 
-            os.makedirs("exports", exist_ok=True)
+                st.success(
+                    f"Receipt saved successfully! (ID: {receipt_id})"
+                )
 
-            csv_path = os.path.join(
-                "exports",
-                f"receipt_{receipt_id}.csv"
-            )
+                os.makedirs("exports", exist_ok=True)
 
-            excel_path = os.path.join(
-                "exports",
-                f"receipt_{receipt_id}.xlsx"
-            )
+                csv_path = os.path.join(
+                    "exports",
+                    f"receipt_{receipt_id}.csv"
+                )
 
-            pdf_path = os.path.join(
-                "exports",
-                f"receipt_{receipt_id}.pdf"
-            )
+                excel_path = os.path.join(
+                    "exports",
+                    f"receipt_{receipt_id}.xlsx"
+                )
 
-            export_receipt_csv(
-                st.session_state.receipt_info,
-                csv_path
-            )
+                pdf_path = os.path.join(
+                    "exports",
+                    f"receipt_{receipt_id}.pdf"
+                )
 
-            export_receipt_excel(
-                st.session_state.receipt_info,
-                excel_path
-            )
+                export_receipt_csv(
+                    st.session_state.receipt_info,
+                    csv_path
+                )
 
-            export_receipt_pdf(
-                st.session_state.receipt_info,
-                pdf_path
-            )
+                export_receipt_excel(
+                    st.session_state.receipt_info,
+                    excel_path
+                )
 
-            # Store export information
-            st.session_state.csv_path = csv_path
-            st.session_state.excel_path = excel_path
-            st.session_state.pdf_path = pdf_path
-            st.session_state.receipt_id = receipt_id
-            st.session_state.is_saved = True
+                export_receipt_pdf(
+                    st.session_state.receipt_info,
+                    pdf_path
+                )
+
+                # Store export information
+                st.session_state.csv_path = csv_path
+                st.session_state.excel_path = excel_path
+                st.session_state.pdf_path = pdf_path
+                st.session_state.receipt_id = receipt_id
+                st.session_state.is_saved = True
+
+        with col2:
+
+            if st.button("📄 Upload Another Receipt", use_container_width=True):
+
+                clear_receipt_state()
+
+                st.rerun()
 
 
         # -------------------------------

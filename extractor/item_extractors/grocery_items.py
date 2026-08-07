@@ -79,30 +79,59 @@ def is_item_name(text):
 
 def extract_grocery_items(lines):
     """
-    State-machine parser for grocery receipts.
+    Extract grocery items.
+
+    Expected format:
+
+    ITEM_NAME   QTY   PRICE   AMOUNT
     """
 
-    items = []
 
-    started = False
+    merged = []
+
     i = 0
 
     while i < len(lines):
 
-        line = lines[i].strip()
+        current = lines[i].strip()
+
+        # item name only
+        if (
+            re.search(r"[A-Za-z]", current)
+            and not re.search(r"\d+\.\d+", current)
+            and i + 1 < len(lines)
+        ):
+            nxt = lines[i + 1].strip()
+
+            if re.search(r"\d", nxt):
+
+                merged.append(current + " " + nxt)
+
+                i += 2
+
+                continue
+
+        merged.append(current)
+
+        i += 1
+
+    lines = merged
+
+    items = []
+
+    started = False
+
+    for line in lines:
+
         upper = line.upper()
 
         # -------------------------
-        # Find table start
+        # Wait until table starts
         # -------------------------
         if not started:
 
             if "ITEM" in upper and "NAME" in upper:
                 started = True
-                i += 1
-
-            else:
-                i += 1
 
             continue
 
@@ -110,72 +139,131 @@ def extract_grocery_items(lines):
         # Stop parsing
         # -------------------------
         if any(word in upper for word in [
+            "MARKET",
+            "OPERATOR",
+            "ITEM NAME",
+            "WT/QTY",
+            "PRICE",
+            "AMT",
             "TOTAL",
-            "THANK",
             "ROUND",
+            "THANK",
             "PAYMENT",
-            "CASH"
+            "CASH",
+            "NO OF ITEMS",
+            "T WT"
         ]):
             break
 
         # -------------------------
-        # Look for item name
+        # OCR cleanup
         # -------------------------
-        if is_item_name(line):
+        line = line.upper()
 
-            item_name = line
+        line = line.replace("_", " ")
 
-            qty = ""
-            price = ""
-            amount = ""
+        # Common OCR fixes
+        line = line.replace('"', '.')
+        line = line.replace("'", ".")
+        line = line.replace("€", "0")
+        line = line.replace("OQ", "00")
+        line = line.replace("QQ", "00")
+        line = line.replace("Q", "0")
 
-            j = i + 1
+        # Fix spaces around decimal points
+        line = re.sub(r'(\d)\s*\.\s*(\d)', r'\1.\2', line)
 
-            while j < len(lines):
+        # Fix numbers like 64"0Q -> 64.00
+        line = re.sub(r'(\d{2})["\']0Q', r'\1.00', line)
 
-                value = normalize_decimal(lines[j].strip())
+        # Fix 3'€Q -> 3.00
+        line = re.sub(r'(\d)["\']?€?Q', r'\1.00', line)
 
-                if is_decimal(value):
+        # convert comma decimals
+        line = re.sub(r"(\d),(\d{2,3})", r"\1.\2", line)
 
-                    if qty == "":
-                        qty = value
+        line = re.sub(r"\s+", " ", line).strip()
 
-                    elif price == "":
-                        price = value
+        line = re.sub(r'(\d+)\.\s+(\d{2})', r'\1.\2', line)
 
-                    elif amount == "":
-                        amount = value
-                        break
+        # Collapse multiple spaces
+        line = re.sub(r'\s+', ' ', line).strip()
 
-                # next item reached
-                if is_item_name(lines[j]):
-                    break
+        line = re.sub(r'^\d+\s+', '', line)
 
-                j += 1
 
-            print()
-            print("Item :", item_name)
-            print("Qty :", qty)
-            print("Price :", price)
-            print("Amount :", amount)
+        # Convert weights like 435 -> 0.435
+        line = re.sub(
+            r'(?<=\s)(\d{3})(?=\s+\d+\.\d+\s+\d+\.\d+)',
+            r'0.\1',
+            line
+        )
 
-            if item_name and price and amount:
+        # Convert weights like 805 -> 0.805
+        line = re.sub(
+            r'(?<=\s)(\d{4})(?=\s+\d+\.\d+\s+\d+\.\d+)',
+            lambda m: "0." + m.group(1),
+            line
+        )
 
-                items.append({
+        # Fix 37 .80 -> 37.80
+        line = re.sub(
+            r'(\d+)\s+\.\s*(\d{2})',
+            r'\1.\2',
+            line
+        )
 
-                    "Qty": qty,
+        # -------------------------
+        # Extract decimal numbers
+        # -------------------------
+        numbers = re.findall(r"\d+\.\d+", line)
 
-                    "Item": item_name,
+        print()
+        print("LINE :", line)
+        print("NUMBERS :", numbers)
 
-                    "Price": price,
+        qty = None
+        price = None
+        amount = None
 
-                    "Amount": amount
+        # -------------------------
+        # Parse numbers
+        # -------------------------
+        if len(numbers) >= 3:
 
-                })
+            qty = float(numbers[-3])
+            price = float(numbers[-2])
+            amount = float(numbers[-1])
 
-            i = j
+        elif len(numbers) == 2:
+
+            # Quantity missing -> assume 1
+            qty = 1
+            price = float(numbers[-2])
+            amount = float(numbers[-1])
+
+        else:
             continue
 
-        i += 1
+        # OCR sometimes gives wrong amount
+        if amount < price:
+            amount = round(qty * price, 2)
+
+        # Everything before Qty is item name
+        item = line.split(numbers[0])[0].strip()
+
+        item = item.replace('"', "").replace("'", "")
+
+        if len(item) < 2:
+            continue
+
+        items.append({
+
+            "Qty": qty,
+            "Item": item.title(),
+            "Price": round(price, 2),
+            "Amount": round(amount, 2)
+
+        })
 
     return items
